@@ -1,7 +1,8 @@
 import { OPERATOR_SYSTEM_PROMPT, checkDraft } from "./_rules.js";
 
 const MODEL = "gemini-2.5-flash";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const GEMINI_DEVELOPER_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const VERTEX_EXPRESS_ENDPOINT = `https://aiplatform.googleapis.com/v1/publishers/google/models/${MODEL}:generateContent`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,12 @@ function send(res, status, payload) {
 }
 
 async function askGemini(key, prompt) {
-  const response = await fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
+  // Google currently issues two API-key families. AI Studio keys use the
+  // Gemini Developer API; AQ.* Express Mode keys use the Vertex AI endpoint.
+  const endpoint = key.startsWith("AQ.")
+    ? VERTEX_EXPRESS_ENDPOINT
+    : GEMINI_DEVELOPER_ENDPOINT;
+  const response = await fetch(`${endpoint}?key=${encodeURIComponent(key)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -140,9 +146,10 @@ export default async function handler(req, res) {
         error: "Google rate limited the free tier. Wait a moment and try again.",
       });
     }
-    if (status === 400 || status === 403) {
+    if (status === 400 || status === 401 || status === 403) {
       return send(res, status, {
-        error: "Google rejected the API key. Check GEMINI_API_KEY in your Vercel project settings.",
+        error:
+          "Google rejected the API key. Confirm GEMINI_API_KEY has no quotes or spaces, is enabled, and then redeploy Vercel.",
       });
     }
     console.error(message);
